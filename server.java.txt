@@ -1,0 +1,229 @@
+File 1:
+Server:
+package projectfinal;
+
+import java.io.*;  
+import java.net.*; 
+import java.util.*; 
+
+class global
+{
+	public static ArrayList<clienthandler> clients =new ArrayList<>();
+}
+class clienthandler extends Thread
+{
+	private Socket client;
+	private BufferedReader in;
+	private PrintWriter out;
+	private String name;
+	private DataOutputStream dataOutputStream;
+    private DataInputStream dataInputStream;
+    private ObjectOutputStream objectoutputStream;
+
+
+	public clienthandler(Socket clsock) throws Exception
+	{
+		this.client=clsock;
+		this.in=new BufferedReader(new InputStreamReader(client.getInputStream()));
+		this.out=new PrintWriter(client.getOutputStream(),true);
+	    this.dataInputStream = new DataInputStream(client.getInputStream());
+        this.dataOutputStream = new DataOutputStream(client.getOutputStream());
+        this.objectoutputStream = new ObjectOutputStream(client.getOutputStream());
+
+	}
+	public void run()  
+	{
+
+		try
+		{
+			while(true)
+			{
+				String clientstr="";
+				String req=in.readLine();
+				
+
+				if(req.equals("rss"))
+					{
+						out.println("\n\nUsage:\nrss <command> [options]\n\nCommands:\n  name                     Change client name.\n  getclient                List of clients in the server.\n  sendmessage              Sends messages to other clients.\n  sendfile             Sends files to other clients.\n  help                     Show help for commands.");
+					}
+				else
+				{
+					req=req+=" ";
+					if(req.startsWith("rss"))
+					{
+
+
+						if(req.startsWith("rss name"))
+						{
+		
+							this.name=req.substring(9).strip();
+							out.println("Client Name Changed to "+name);
+							for(int i=0;i<global.clients.size();i++)
+							{
+								global.clients.get(i).out.println("rss refreshclients");
+							}
+						}
+						else if(req.startsWith("rss getclient"))
+						{
+				
+							String index="";
+							String names="";
+							for(int i=0;i<global.clients.size();i++)
+							{
+								index+=(Integer.toString(i))+" ";
+								names+=(global.clients.get(i).name)+" ";
+							}
+							int clientpost=global.clients.indexOf(this);
+							out.println("rss recieveclient");
+							out.println(clientpost);
+							out.println(index);
+							out.println(names);
+	
+
+						}
+						else if(req.startsWith("rss sendmessage"))
+						{
+							try
+							{
+								int post=Integer.parseInt(req.substring(16,17));
+								String msg=req.substring(18);
+								clienthandler reciever=global.clients.get(post);
+								String finalmsg="rss recievemsg "+name+" "+msg;
+								reciever.out.println(finalmsg);
+								System.out.println("Messsage sent from "+name+" to "+reciever.name+":"+msg);
+								out.println("Message Sent to "+reciever.name);
+							}
+							catch(StringIndexOutOfBoundsException|NumberFormatException e)
+							{
+								
+								out.println("Invalid Syntax\nSyntax for rss sendmessage:rss sendmessage <RecieverIndex> <Message>");
+								
+
+							}
+							catch(IndexOutOfBoundsException e)
+							{
+								out.println("RecieverIndex does not exist ");
+							}
+
+						}
+						else if(req.startsWith("rss sendfile"))
+						{
+							try
+							{
+								int post=Integer.parseInt(req.substring(13,14));
+								String dir=req.substring(15);
+								clienthandler reciever=global.clients.get(post);
+								out.println(req);
+							}
+							catch(StringIndexOutOfBoundsException|NumberFormatException e)
+							{
+								
+								out.println("Invalid Syntax\nSyntax for rss sendfile:rss sendfile <RecieverIndex> <filepath>");
+								
+
+							}
+							catch(IndexOutOfBoundsException e)
+							{
+								out.println("RecieverIndex does not exist ");
+							}
+
+						}
+						else if(req.startsWith("rss recievefile"))
+						{
+							int post=Integer.parseInt(req.substring(16,17));
+							clienthandler reciever=global.clients.get(post);
+							String filename=reciever.name+"_"+req.substring(18);
+							receiveFile("server"+filename);
+
+							reciever.out.println("rss recievefile "+filename);
+							File file=new File("server"+filename);
+							System.out.println("File transfer from "+name+" to "+reciever.name+":"+req.substring(18));
+							reciever.sendFile(file);
+
+
+						}
+						else if(req.startsWith("rss help"))
+						{
+							out.println("Help is for LOZZZERSSSS");
+						}
+
+						else
+						{
+							out.println("Unknown Command "+"\""+req.substring(req.indexOf(" "))+"\"");
+						}
+					}
+					else
+					{
+						out.println(req.substring(0,req.indexOf(" "))+" is not recognized as an internal or external command,operable program or batch file.");
+					}
+				}
+				
+			}
+		}
+		catch(Exception e)
+		{
+
+			System.out.println(name+" got Disconnected ");
+			global.clients.remove(global.clients.indexOf(this));
+
+		}
+	}
+	private void receiveFile(String fileName) throws Exception
+    {
+        int bytes = 0;
+        FileOutputStream fileOutputStream= new FileOutputStream(fileName);
+ 
+        long size= dataInputStream.readLong(); // read file size
+        byte[] buffer = new byte[4 * 1024];
+        while (size > 0&& (bytes = dataInputStream.read(buffer, 0,(int)Math.min(buffer.length, size)))!= -1) 
+        {
+            fileOutputStream.write(buffer, 0, bytes);
+            size -= bytes;
+        }
+
+        fileOutputStream.close();
+    }
+
+    private void sendFile(File file)
+        throws Exception
+    {
+        int bytes = 0;
+        
+        FileInputStream fileInputStream= new FileInputStream(file);
+        dataOutputStream.writeLong(file.length());
+
+        byte[] buffer = new byte[4 * 1024];
+        while ((bytes = fileInputStream.read(buffer))!= -1) 
+        {
+
+          dataOutputStream.write(buffer, 0, bytes);
+          dataOutputStream.flush();
+        }        
+        fileInputStream.close();
+    }
+
+
+}
+
+public class server
+{
+
+
+	public static void main(String args[]) throws Exception
+	{
+		ServerSocket portsocket=new ServerSocket(6000);
+		while(true)
+		{
+			System.out.println("[Waiting for client]");
+			Socket client=portsocket.accept();
+			System.out.println("[Client Connected]");
+			clienthandler clientthread=new clienthandler(client);
+			global.clients.add(clientthread);
+			clientthread.start();
+
+		}
+	}
+}
+
+
+

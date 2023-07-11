@@ -1,0 +1,683 @@
+package projectfinal;
+
+import java.io.*;  
+import java.net.*; 
+import java.util.*; 
+import javax.swing.*;
+import java.awt.event.*;
+import java.awt.*;
+import javax.swing.BorderFactory;
+import javax.swing.border.Border;
+
+
+class serverresponse extends Thread 
+{
+	private Socket server;
+	private BufferedReader in;
+    private static DataOutputStream dataOutputStream;
+    private static DataInputStream dataInputStream;
+    private static PrintWriter client_server_output;
+    private ObjectInputStream objectinStream;
+    clietlisthandler clientlistobj;
+
+	public serverresponse(Socket clsock,clietlisthandler obj) throws Exception
+	{
+		this.server=clsock;
+		in=new BufferedReader(new InputStreamReader(server.getInputStream()));
+		dataInputStream = new DataInputStream(server.getInputStream());
+        dataOutputStream = new DataOutputStream(server.getOutputStream());
+        client_server_output=new PrintWriter(server.getOutputStream(),true);
+        objectinStream = new ObjectInputStream(server.getInputStream());
+        clientlistobj=obj;
+
+	}
+	public void run()
+	{
+		try
+		{
+			while(true)
+			{
+				String req=in.readLine();
+				if(req.startsWith("rss sendfile"))
+				{
+					try
+					{
+						int post=Integer.parseInt(req.substring(13,14));
+						String dir=req.substring(15);
+						File file = new File(dir);
+						if(file.exists()!=true)
+						{
+							throw new Exception();
+						}
+						String filename=file.getName();
+						client_server_output.println("rss recievefile "+req.substring(13,14)+" "+filename);
+						sendFile(file);
+						
+					}
+					catch(Exception e)
+					{
+						System.out.print("File does not exist");
+			
+					}
+				}
+				else if(req.startsWith("rss recievefile"))
+				{
+					String filename=req.substring(16);
+					receiveFile(filename);
+
+				}
+
+				else if(req.equals("rss recieveclient"))
+				{
+
+					int post=Integer.parseInt(in.readLine());
+	
+					String index=in.readLine();
+					String names=in.readLine();
+
+					clientlistobj.addclients(post,index,names);
+
+
+				}
+
+				else if(req.equals("rss refreshclients"))
+				
+				{
+					clientlistobj.requestclients();
+				}
+
+				else if(req.startsWith("rss recievemsg"))
+				{
+					String queryarr[]=req.split(" ",4);
+					//System.out.println(req);
+					try
+					{
+						//System.out.println(client.clientname+"-"+queryarr[2]+".txt");
+						File f = new File(client.clientname+"-"+queryarr[2]+".txt");
+						FileWriter fin;
+						if(f.exists())
+						{
+							fin=new FileWriter(f,true);
+						}
+						else
+						{
+							f.createNewFile();
+							fin=new FileWriter(f);
+						}
+
+						fin.write("/r/"+queryarr[3]+"\n");	
+
+
+						fin.close();
+
+						
+						clientchathandler.getText();
+
+					}
+					catch(Exception error)
+					{
+						System.out.println(error);
+					}
+				}
+
+				else
+				{
+					
+					System.out.println(req);
+					
+				}
+			}
+		}
+		catch(Exception e)
+		{
+			System.out.print(e);
+		}
+	}
+    private static void sendFile(File file)
+        throws Exception
+    {
+        int bytes = 0;
+        
+        FileInputStream fileInputStream= new FileInputStream(file);
+ 
+        dataOutputStream.writeLong(file.length());
+
+        byte[] buffer = new byte[4 * 1024];
+        while ((bytes = fileInputStream.read(buffer))!= -1) 
+        {
+
+          dataOutputStream.write(buffer, 0, bytes);
+          dataOutputStream.flush();
+        }        
+        fileInputStream.close();
+    }
+	private static void receiveFile(String fileName) throws Exception
+    {
+    	try
+    	{
+       	int bytes = 0;
+        FileOutputStream fileOutputStream= new FileOutputStream(fileName);
+        long size= dataInputStream.readLong(); // read file size
+        byte[] buffer = new byte[4 * 1024];
+        while (size > 0&& (bytes = dataInputStream.read(buffer, 0,(int)Math.min(buffer.length, size)))!= -1) 
+        {
+            fileOutputStream.write(buffer, 0, bytes);
+            size -= bytes;
+        }
+
+        System.out.println("File Received: "+fileName);
+        fileOutputStream.close();
+    	}
+    	catch(Exception e)
+    	{
+    		System.out.print(e);
+    	}
+    }
+}
+
+class clientchathandler implements ActionListener 
+{
+	static JFrame mainpanel;
+	JPanel rightpanel;
+	static JPanel chatpanel;
+	static JLabel imagel;
+	static ImageIcon x;
+	JPanel namepanel;
+	JPanel textpanel;
+
+	JTextArea textArea;
+	JButton getmsgbut;
+	static JScrollPane chatscroll;
+	//PrintWriter client_server_output;
+
+	static String chatname;
+	static int sendindex;
+
+	
+	clientchathandler(JPanel rpanel,JFrame mpanel)
+	{
+		mainpanel=mpanel;
+		rightpanel=rpanel;
+		chatpanel=new JPanel();
+		namepanel=new JPanel();
+		textpanel=new JPanel();
+		//client_server_output=cso;
+		
+		
+			imagel=new JLabel("");
+			x=new ImageIcon(this.getClass().getResource("/networks.jpg"));
+	        imagel.setIcon(x);
+	        imagel.setSize(1600,900);
+		
+			
+	}
+
+	void chatbox(int post,String name)
+	{
+		rightpanel.removeAll();
+ 		rightpanel.repaint();
+
+ 		namepanel.removeAll();
+ 		namepanel.repaint();
+
+ 		chatpanel.removeAll();
+ 		chatpanel.repaint();
+
+ 		textpanel.removeAll();
+ 		textpanel.repaint();
+
+
+ 		//textpanel.removeAll();
+ 		//textpanel.repaint();
+
+		sendindex=post;
+		chatname=name;
+		Border border3=BorderFactory.createLineBorder(Color.red,3);
+
+		chatpanel.setBorder(border3);
+		chatpanel.setLayout(new GridLayout(0,1));
+		chatscroll = new JScrollPane(chatpanel,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		//chatscroll.setAutoscrolls(true);
+		chatscroll.setBounds(0,30,650,660);
+
+		rightpanel.add(chatscroll);
+
+		namepanel.setBorder(border3);
+		namepanel.setBounds(0,0,650,40);
+		namepanel.setLayout(null);
+		rightpanel.add(namepanel);
+
+		textpanel.setBorder(border3);
+		textpanel.setBounds(0,670,650,85);
+		textpanel.setLayout(null);
+		rightpanel.add(textpanel);
+
+		JLabel namelabel=new JLabel(chatname);
+		namelabel.setBounds(0,0,100,20);
+		namepanel.add(namelabel);
+
+
+		textArea= new JTextArea();
+		textArea.setLineWrap(true);
+       	textArea.setWrapStyleWord(true);
+       	textArea.setEditable(true);
+		JScrollPane scroll = new JScrollPane(textArea,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+		//scroll.setPreferredSize(new Dimension(400,50));
+		
+		scroll.setBounds(10,25,400,50);
+		textpanel.add(scroll);
+
+
+		getmsgbut=new JButton("Send");
+		getmsgbut.addActionListener(this);
+		getmsgbut.setBounds(420,25,80,50);
+
+		textpanel.add(getmsgbut);
+
+
+
+
+
+		//textpanel.setVisible(true);
+		//rightpanel.setVisible(true);
+		
+
+		try{getText();}
+		catch(Exception e){System.out.println(e);}
+
+
+
+
+
+
+	}
+
+	static void getText() throws FileNotFoundException
+	{
+		chatpanel.removeAll();
+ 		chatpanel.repaint();
+
+ 		String str;
+
+ 		File f = new File(client.clientname+"-"+chatname+".txt");
+ 		Scanner sc;
+
+ 		if(f.exists())
+			{
+				sc=new Scanner(f);
+
+				while(sc.hasNextLine())
+					{
+						
+						str=sc.nextLine();
+
+						JLabel obj=new JLabel();
+						if(str.startsWith("/r/"))
+						{
+							str="<HTML>"+str.substring(3)+"</HTML>";
+							obj.setText(str);
+							obj.setHorizontalAlignment(JLabel.LEFT);
+						}
+						else
+						{
+
+							if(str.length()>15)
+							{
+								str="<HTML>"+str+"</HTML>";
+								System.out.println(str);
+								StringBuffer stringBuffer = new StringBuffer(str);
+								stringBuffer.insert(16,"\n");
+								str=stringBuffer.toString();
+								//System.out.println(str);
+							}
+
+							Font  f3  = new Font(Font.DIALOG,  Font.BOLD, 15);
+							obj.setText(str);
+							obj.setFont(f3);
+							obj.setHorizontalAlignment(JLabel.RIGHT);
+						}
+						obj.setPreferredSize(new Dimension(100,100));
+						obj.setBackground(Color.orange);
+						obj.setOpaque(true);
+						
+						chatpanel.add(obj);
+					}
+				
+
+			}
+			JLabel templ=new JLabel(" ");
+			chatpanel.add(templ);
+			templ.setBackground(Color.orange);
+			templ.setOpaque(true);
+			chatscroll.getVerticalScrollBar().setValue(chatscroll.getVerticalScrollBar().getMaximum());
+			//chatpanel.remove(temp);
+			//mainpanel.add(imagel);
+			mainpanel.setVisible(true);
+
+
+
+
+
+
+
+
+	}
+
+
+	public void actionPerformed(ActionEvent e) 
+	{
+		
+		if(textArea.getText().trim().isEmpty())
+		{
+			System.out.println("EMPTY");
+		}
+		else
+		{
+			String query="rss sendmessage "+Integer.toString(sendindex)+" "+textArea.getText();
+
+			try
+			{
+				File f = new File(client.clientname+"-"+chatname+".txt");
+				FileWriter fin;
+				if(f.exists())
+				{
+					fin=new FileWriter(f,true);
+				}
+				else
+				{
+					f.createNewFile();
+					fin=new FileWriter(f);
+				}
+
+
+				fin.write(textArea.getText()+"\n");
+				client.client_server_output.println(query);
+
+				
+				textArea.setText(null);
+				fin.close();
+
+				getText();
+
+			}
+			catch(Exception error)
+			{
+
+			}
+		}
+	}
+
+
+
+
+
+}
+class clietlisthandler implements ActionListener
+{
+	JFrame mainframe;
+	JPanel leftpanel;
+	JPanel rightpanel;
+	static ImageIcon x;
+	static JLabel imagel; 
+	static ArrayList<JButton> clientsbuttons;
+
+	clientchathandler chathandler;
+	static ArrayList<String> namelist;
+	static ArrayList<String> indexlist;
+	public clietlisthandler(JFrame frame)
+	{
+		mainframe=frame;
+		
+
+		leftpanel=new JPanel();
+		rightpanel=new JPanel();
+		
+		chathandler=new clientchathandler(rightpanel,mainframe);
+		createframe();
+		
+		/*imagel=new JLabel("");
+		x=new ImageIcon(this.getClass().getResource("/networks.jpg"));
+        imagel.setIcon(x);
+        imagel.setSize(1600,900);
+		*/
+
+	}
+
+	void createframe()
+	{
+		mainframe.getContentPane().removeAll();
+ 		mainframe.repaint();
+ 		mainframe.setSize(1024,800);
+		Border border1=BorderFactory.createLineBorder(Color.black,3);
+		Border border2=BorderFactory.createLineBorder(Color.black,3);
+
+		leftpanel.setBorder(border1);
+		leftpanel.setBounds(0,0,350,760);
+		leftpanel.setLayout(new FlowLayout());
+		leftpanel.setVisible(true);
+		mainframe.add(leftpanel);
+
+		rightpanel.setBorder(border2);
+		rightpanel.setBounds(350,0,655,760);
+		rightpanel.setLayout(null);
+		rightpanel.setVisible(true);
+		mainframe.add(rightpanel);
+		//mainframe.add(imagel);
+		
+		
+		requestclients();
+
+	}
+
+	void requestclients()
+	{
+		client.client_server_output.println("rss getclient");
+	}
+
+	void addclients(int post,String indexes,String names)
+	{
+         
+		leftpanel.removeAll();
+ 		leftpanel.repaint();
+        
+
+        namelist = new ArrayList<String>();   
+        for(String name:names.split(" ")) 
+        {
+            namelist.add(name);
+        }
+
+        indexlist = new ArrayList<String>();
+        for(String index:indexes.split(" ")) 
+        {
+        	indexlist.add(index);
+        }
+
+
+      	clientsbuttons =new ArrayList<>();
+        for(int i=0;i<indexlist.size();i++)
+        {
+        	if(i==post)
+        	{
+        		JButton button=new JButton();
+        		button.setText(namelist.get(i));
+        		button.setPreferredSize(new Dimension(320,50));
+        		button.addActionListener(this);
+        		clientsbuttons.add(button);
+      
+        	}
+        	else
+        	{
+		    	JButton button=new JButton();
+		    	button.setText(namelist.get(i));
+		    	button.setBackground(Color.cyan);
+		    	button.setPreferredSize(new Dimension(320,50));
+		    	button.addActionListener(this);
+		    	leftpanel.add(button);
+		    	mainframe.setVisible(true);
+		    	clientsbuttons.add(button);
+        	}
+        }
+    }
+    public void actionPerformed(ActionEvent e)
+    {
+        System.out.println(clientsbuttons.indexOf(e.getSource()));
+        chathandler.chatbox(clientsbuttons.indexOf(e.getSource()),namelist.get(clientsbuttons.indexOf(e.getSource())));
+
+    }
+        
+
+
+
+
+
+
+
+
+}
+
+
+public class client implements ActionListener
+{
+	/*static JButton namebutton;
+	static JFrame mainframe;
+	static JTextField namefield;
+	*/
+	static JLabel l4,l5,l6,imagel;
+	static JTextField suser,spass;
+	static JButton ssubmit;
+static  ImageIcon x;
+	static PrintWriter client_server_output;
+	static client clientobj;
+	static serverresponse server_client_input;
+	static Socket serversocket;
+	static JFrame mainframe=new JFrame();
+
+	static String clientname;
+	
+	client()
+	{
+		  imagel=new JLabel("");
+		x=new ImageIcon(this.getClass().getResource("/i.jpg"));
+        imagel.setIcon(x);
+        imagel.setSize(1600,900);
+	}
+	public static void main(String args[])
+	{
+		try
+		{ 
+			serversocket=new Socket("localhost",6000);
+			System.out.println("Client has successfully connected to Renil's Socket Server\n use command <rss> to proceed");
+			//BufferedReader keyboardinput =new BufferedReader(new InputStreamReader(System.in));
+			
+			Scanner scan=new Scanner(System.in);
+
+			client_server_output=new PrintWriter(serversocket.getOutputStream(),true);
+			
+			clientobj=new client();
+
+
+			
+
+		}
+		catch(Exception e)
+		{
+
+			System.out.print("Server stopped");
+		}
+		//JFrame mainframe=new JFrame();
+		mainframe.setLayout(null);
+		mainframe.setSize(1600,900);
+	
+		mainframe.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		mainframe.setResizable(false);
+		
+		mainframe.setLayout(null);
+		
+		
+		
+			
+			
+			 
+					System.out.print("came in");
+					l4=new JLabel("NEW TO NETORKING !!\n ENJOY NETWORKING with Reckon");
+					
+					l5=new JLabel("Username");
+					l6=new JLabel("password");
+					client y=new client();
+					System.out.println("not here");
+					l4.setFont(new Font("Arial",Font.BOLD,30));
+					l4.setForeground(Color.cyan);
+					
+					
+					l5.setForeground(Color.cyan);
+					
+					l6.setForeground(Color.cyan);
+					suser=new JTextField(20);
+					spass=new JTextField(20);
+					ssubmit=new JButton("submit");
+					
+					
+					System.out.println("2nd");
+					l4.setBounds(300,200,2000,50);
+					l5.setBounds(500,400,100,20);
+					l6.setBounds(500,500,100,20);
+					suser.setBounds(650,400,200,20);
+					spass.setBounds(650,500,200,20);
+					ssubmit.setBounds(650,500,100,20);
+					
+					System.out.println("3rd");
+					
+					ssubmit.addActionListener(clientobj);
+
+					mainframe.add(l4);
+					mainframe.add(l5);
+					//mainframe.add(l6);
+					mainframe.add(suser);
+					//mainframe.add(spass);
+					mainframe.add(ssubmit);
+					mainframe.add(imagel);
+					
+					mainframe.setVisible(true);
+					
+					System.out.println("came end");
+	}
+	public void actionPerformed(ActionEvent e)
+	{
+
+		if(e.getSource()==ssubmit)
+		{
+			client_server_output.println("rss name "+suser.getText());
+			clientname=suser.getText();
+
+			mainframe.setTitle(clientname);
+
+ 			clietlisthandler clientlistobj=new clietlisthandler(mainframe);
+ 			try
+ 			{
+ 				server_client_input=new serverresponse(serversocket,clientlistobj);
+ 				new Thread(server_client_input).start();
+ 			}
+ 			catch(Exception r)
+ 			{
+ 				System.out.println("error  occured");
+ 			} 
+
+
+
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
